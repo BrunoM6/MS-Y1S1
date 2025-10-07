@@ -38,7 +38,6 @@ class Room(mesa.Agent):
         temp_diff = external_temp - self.temperature
         self.temperature += temp_diff * exchange_rate
         
-        # If heating/cooling is on, adjust temperature
         for appliance in self.appliances:
             if appliance.appliance_type == ApplianceType.HEATER and appliance.is_on:
                 self.temperature += 0.5
