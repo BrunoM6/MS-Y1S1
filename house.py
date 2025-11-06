@@ -1,5 +1,5 @@
 import random
-from typing import List, Optional
+from typing import List, Optional, Dict
 import mesa
 from enums import RoomType, ApplianceType
 
@@ -82,7 +82,7 @@ class Appliance(mesa.Agent):
             print(f"[Appliance] {self.appliance_type.name} in {self.room.room_type.name} consumed {consumption} kWh this step.")
 
 class House(mesa.Agent):
-    def __init__(self, unique_id, model, num_occupants: int = 2, insulation_quality: float = 0.5):
+    def __init__(self, unique_id, model, num_occupants: int = 2, insulation_quality: float = 0.5, n_kitchens: int = 1, n_living_rooms: int = 1, n_bedrooms: int = 2 ,n_bathrooms: int = 1, n_hallways: int = 1):
         super().__init__(unique_id, model)
         self.insulation_quality = insulation_quality
         self.indoor_temperature = 20.0
@@ -90,24 +90,25 @@ class House(mesa.Agent):
         self.occupants = []
         self.total_consumption = 0.0
 
-        self._create_rooms()
+        # Create rooms
+        number_of_rooms: Dict[RoomType, int] = {
+            RoomType.KITCHEN: n_kitchens,
+            RoomType.LIVING_ROOM: n_living_rooms,
+            RoomType.BEDROOM: n_bedrooms,
+            RoomType.BATHROOM: n_bathrooms,
+            RoomType.HALLWAY: n_hallways
+        }
+
+        for room_type, count in number_of_rooms.items():
+            for _ in range(count):
+                has_window = room_type in [RoomType.KITCHEN, RoomType.LIVING_ROOM, RoomType.BEDROOM]
+                room = Room(self.model.next_id(), self.model, room_type, has_window)
+                self.rooms.append(room)
+                self.model.schedule.add(room)
+                self._add_appliances_to_room(room)
+
+        # Create occupants
         self._create_occupants(num_occupants)
-
-    def _create_rooms(self):
-        room_configs = [
-            (RoomType.KITCHEN, True),
-            (RoomType.LIVING_ROOM, True),
-            (RoomType.BEDROOM, True),
-            (RoomType.BEDROOM, True),
-            (RoomType.BATHROOM, False),
-            (RoomType.HALLWAY, False)
-        ]
-
-        for room_type, has_window in room_configs:
-            room = Room(self.model.next_id(), self.model, room_type, has_window)
-            self.rooms.append(room)
-            self.model.schedule.add(room)
-            self._add_appliances_to_room(room)
 
     def _add_appliances_to_room(self, room: Room):
         appliances_by_room = {

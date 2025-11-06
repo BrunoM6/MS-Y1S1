@@ -16,9 +16,8 @@ class WeatherCondition:
     is_extreme_event: bool = False
 
 class ResidentialEnergyModel(Model):
-    def __init__(self, num_houses: int = 5, avg_occupants_per_house: int = 2, avg_insulation_quality: float = 0.5, simulation_days: int = 30, energy_price_per_kwh: float = 0.15, weather_scenario: str = "normal"):
+    def __init__(self, n_kitchens: int = 1, n_living_rooms: int = 1, n_bedrooms: int = 2 ,n_bathrooms: int = 1, n_hallways: int = 1, n_occupants: int = 2, avg_insulation_quality: float = 0.5, simulation_days: int = 30, energy_price_per_kwh: float = 0.15, weather_scenario: str = "normal"):
         super().__init__()
-        self.num_houses = num_houses
         self.simulation_days = simulation_days
         self.energy_price_per_kwh = energy_price_per_kwh
         self.weather_scenario = weather_scenario
@@ -32,25 +31,21 @@ class ResidentialEnergyModel(Model):
         self.consumption_by_appliance = {at: 0.0 for at in ApplianceType}
 
         self.base_temperature = 15.0
-
         self.schedule = RandomActivation(self)
 
-        self.houses: List[House] = []
-        for i in range(num_houses):
-            num_occupants = max(1, int(random.gauss(avg_occupants_per_house, 0.5)))
-            insulation = max(0.1, min(1.0, random.gauss(avg_insulation_quality, 0.15)))
-            house = House(self.next_id(), self, num_occupants, insulation)
-            self.houses.append(house)
-            self.schedule.add(house)
+        self.n_occupants = n_occupants
+        self.insulation = max(0.1, min(1.0, random.gauss(avg_insulation_quality, 0.15)))
+
+        self.house = House(self.next_id(), self, self.n_occupants, self.insulation, n_kitchens, n_living_rooms, n_bedrooms, n_bathrooms, n_hallways)
+        self.schedule.add(self.house)
 
         self.datacollector = DataCollector(
             model_reporters={
                 "Total Energy (kWh)": lambda m: m.total_energy_consumed,
                 "Average House Temp": lambda m: np.mean([
                     room.temperature
-                    for house in m.houses
-                    for room in house.rooms
-                ]) if m.houses else 0.0,
+                    for room in self.house.rooms
+                ]),
                 "External Temperature": lambda m: m.get_current_weather().temperature,
                 "Hour of Day": lambda m: m.hour_of_day,
                 "Day": lambda m: m.current_day,
@@ -92,13 +87,10 @@ class ResidentialEnergyModel(Model):
             self.step()
 
     def get_summary_statistics(self) -> Dict:
-        df = self.datacollector.get_model_vars_dataframe()
-
-        # Update consumption_by_appliance
-        for house in self.houses:
-            for room in house.rooms:
-                for appliance in room.appliances:
-                    self.consumption_by_appliance[appliance.appliance_type] += appliance.total_consumption
+        self.consumption_by_appliance = {at: 0.0 for at in ApplianceType}
+        for room in self.house.rooms:
+            for appliance in room.appliances:
+                self.consumption_by_appliance[appliance.appliance_type] += appliance.total_consumption
 
         avg_daily = np.mean(self.daily_consumption) if self.daily_consumption else 0
         total_cost = self.total_energy_consumed * self.energy_price_per_kwh
@@ -113,6 +105,5 @@ class ResidentialEnergyModel(Model):
                 for k, v in self.consumption_by_appliance.items()
                 if v > 0
             },
-            "simulation_days": self.simulation_days,
-            "num_houses": self.num_houses
+            "simulation_days": self.simulation_days
         }

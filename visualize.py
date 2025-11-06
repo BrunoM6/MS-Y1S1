@@ -2,15 +2,12 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from simulation import Simulation
 
-def run_visualization(num_houses: int = 3, simulation_days: int = 1, interval_ms: int = 250):
-    sim = Simulation(num_houses=num_houses, simulation_days=simulation_days)
+def run_visualization(n_kitchens: int = 1, n_living_rooms: int = 1, n_bedrooms: int = 2 ,n_bathrooms: int = 1, n_hallways: int = 1, n_occupants: int = 2, avg_insulation_quality: float = 0.5, simulation_days: int = 5, energy_price_per_kwh: float = 0.15, weather_scenario: str = "normal", interval_ms: int = 250):
+    sim = Simulation(n_kitchens=n_kitchens, n_living_rooms=n_living_rooms, n_bedrooms=n_bedrooms, n_bathrooms=n_bathrooms, n_hallways=n_hallways, n_occupants=n_occupants, avg_insulation_quality=avg_insulation_quality, simulation_days=simulation_days, energy_price_per_kwh=energy_price_per_kwh, weather_scenario=weather_scenario)
     model = sim.model
     total_steps = model.simulation_days * model.steps_per_day
 
-    if not model.houses:
-        print("No houses in the model.")
-        return
-    house = model.houses[0]
+    house = model.house
     room_labels = [getattr(r.room_type, "name", f"Room_{i}") for i, r in enumerate(house.rooms)]
 
     times = []
@@ -24,7 +21,7 @@ def run_visualization(num_houses: int = 3, simulation_days: int = 1, interval_ms
     initial_counts = [len(r.occupants) for r in house.rooms]
     bars = ax_bar.bar(range(len(room_labels)), initial_counts, tick_label=room_labels)
     ax_bar.set_ylim(0, max(3, max(initial_counts) + 1))
-    ax_bar.set_title("Occupants per room (house 0)")
+    ax_bar.set_title("Occupants per room")
     ax_bar.set_ylabel("Occupants")
 
     # Cumulative energy line
@@ -89,4 +86,4 @@ def run_visualization(num_houses: int = 3, simulation_days: int = 1, interval_ms
     plt.show()
 
 if __name__ == "__main__":
-    run_visualization(num_houses=3, simulation_days=5, interval_ms=200)
+    run_visualization(interval_ms=150)

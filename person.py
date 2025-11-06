@@ -6,6 +6,26 @@ from enums import RoomType, ApplianceType
 if TYPE_CHECKING:
     from house import House, Room, Appliance
 
+
+def _generate_routine() -> Dict[int, str]:
+    routine = {}
+    for h in range(0, 7):
+        routine[h] = "sleeping"
+    for h in range(7, 9):
+        routine[h] = "morning_routine"
+    for h in range(9, 12):
+        routine[h] = "away"
+    for h in range(12, 14):
+        routine[h] = "lunch"
+    for h in range(14, 18):
+        routine[h] = "away"
+    for h in range(18, 22):
+        routine[h] = "evening_activities"
+    for h in range(22, 24):
+        routine[h] = "sleeping"
+    return routine
+
+
 class Person(mesa.Agent if False else object):  # keep simple for tests / not running as Mesa agent strictly
     def __init__(self, unique_id, model, name: str, house: 'House'):
         # If Mesa Agent is available, subclass integration can be added; simplified constructor here
@@ -16,25 +36,7 @@ class Person(mesa.Agent if False else object):  # keep simple for tests / not ru
         self.current_room: Optional['Room'] = None
         self.is_home = True
         self.energy_conscious = random.random() > 0.5
-        self.routine_schedule = self._generate_routine()
-
-    def _generate_routine(self) -> Dict[int, str]:
-        routine = {}
-        for h in range(0, 7):
-            routine[h] = "sleeping"
-        for h in range(7, 9):
-            routine[h] = "morning_routine"
-        for h in range(9, 12):
-            routine[h] = "away"
-        for h in range(12, 14):
-            routine[h] = "lunch"
-        for h in range(14, 18):
-            routine[h] = "away"
-        for h in range(18, 22):
-            routine[h] = "evening_activities"
-        for h in range(22, 24):
-            routine[h] = "sleeping"
-        return routine
+        self.routine_schedule = _generate_routine()
 
     def move_to_room(self, room: 'Room'):
         if self.current_room and self.current_room != room:
