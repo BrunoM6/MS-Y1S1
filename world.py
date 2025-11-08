@@ -16,7 +16,7 @@ class WeatherCondition:
     is_extreme_event: bool = False
 
 class ResidentialEnergyModel(Model):
-    def __init__(self, n_kitchens: int = 1, n_living_rooms: int = 1, n_bedrooms: int = 2 ,n_bathrooms: int = 1, n_hallways: int = 1, n_occupants: int = 2, avg_insulation_quality: float = 0.5, simulation_days: int = 30, energy_price_per_kwh: float = 0.15, weather_scenario: str = "normal"):
+    def __init__(self, n_kitchens: int = 1, n_living_rooms: int = 1, n_bedrooms: int = 2 ,n_bathrooms: int = 1, n_hallways: int = 1, n_occupants: int = 2, avg_insulation_quality: float = 0.5, simulation_days: int = 5, energy_price_per_kwh: float = 0.15, weather_scenario: str = "normal"):
         super().__init__()
         self.simulation_days = simulation_days
         self.energy_price_per_kwh = energy_price_per_kwh
@@ -25,6 +25,11 @@ class ResidentialEnergyModel(Model):
         self.current_day = 0
         self.hour_of_day = 0
         self.steps_per_day = 24
+
+        # UI control
+        self.running = True
+        self.total_steps_run = 0
+        self.total_steps_allowed = self.simulation_days * self.steps_per_day
 
         self.total_energy_consumed = 0.0
         self.daily_consumption = []
@@ -76,6 +81,11 @@ class ResidentialEnergyModel(Model):
         self.schedule.step()
         self.datacollector.collect(self)
 
+        # Check if simulation should continue
+        self.total_steps_run += 1
+        if self.total_steps_run >= self.total_steps_allowed:
+            self.running = False
+
         self.hour_of_day = (self.hour_of_day + 1) % 24
         if self.hour_of_day == 0:
             self.current_day += 1
@@ -84,6 +94,9 @@ class ResidentialEnergyModel(Model):
     def run_simulation(self):
         total_steps = self.simulation_days * self.steps_per_day
         for _ in range(total_steps):
+            # Stop if the model is no longer running
+            if not self.running:
+                break
             self.step()
 
     def get_summary_statistics(self) -> Dict:
