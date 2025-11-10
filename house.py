@@ -15,22 +15,35 @@ class Room(mesa.Agent):
 
     def update_temperature(self, external_temp: float, house_insulation: float):
         # Calculate heat exchange with outside (reduced rate)
-        exchange_rate = (1 - house_insulation) * 0.1  # Much slower exchange
+        exchange_rate = (1 - house_insulation) * 0.1
         temp_diff = external_temp - self.temperature
         self.temperature += temp_diff * exchange_rate
 
         for appliance in self.appliances:
             if appliance.appliance_type == ApplianceType.HEATER and appliance.is_on:
-                # Heater works harder when it's colder outside
-                heating_power = 2.0  # Base
-                if self.temperature < 18.0:
-                    heating_power *= 1.5  # 50% more
+                # Graduated heating power based on how cold it is
+                heating_power = 2.0  # Base power
+                
+                if self.temperature < 10.0:
+                    heating_power *= 4.0 
+                elif self.temperature < 14.0:
+                    heating_power *= 3.0
+                elif self.temperature < 18.0:
+                    heating_power *= 2.0
+                
                 self.temperature += heating_power
+                
             elif appliance.appliance_type == ApplianceType.AIR_CONDITIONER and appliance.is_on:
-                # AC works harder when it's hotter outside
-                cooling_power = 2.0  # Base
-                if self.temperature > 24.0:
-                    cooling_power *= 1.5  # 50% more
+                # Graduated cooling power based on how hot it is
+                cooling_power = 2.0  # Base power
+                
+                if self.temperature > 32.0:
+                    cooling_power *= 4.0 
+                elif self.temperature > 28.0:
+                    cooling_power *= 3.0 
+                elif self.temperature > 24.0:
+                    cooling_power *= 2.0 
+                
                 self.temperature -= cooling_power
 
     def step(self):
@@ -85,15 +98,24 @@ class Appliance(mesa.Agent):
             # base consumption
             consumption = self.power_consumption
             
-            # dynamic consumption for climate control appliances
+            # Dynamic consumption for climate control appliances with graduated scaling
             if self.appliance_type == ApplianceType.HEATER:
-                # heater uses more power in colder conditions
-                if self.room.temperature < 18.0:
-                    consumption *= 1.5 
+                # Heater uses more power the colder it is
+                if self.room.temperature < 10.0: 
+                    consumption *= 4.0 
+                elif self.room.temperature < 14.0: 
+                    consumption *= 3.0
+                elif self.room.temperature < 18.0:
+                    consumption *= 2.0
+                
             elif self.appliance_type == ApplianceType.AIR_CONDITIONER:
-                # AC uses more power in hotter conditions
-                if self.room.temperature > 24.0:
-                    consumption *= 1.5
+                # AC uses more power the hotter it is
+                if self.room.temperature > 32.0:
+                    consumption *= 4.0
+                elif self.room.temperature > 28.0:
+                    consumption *= 3.0
+                elif self.room.temperature > 24.0:
+                    consumption *= 2.0
             
             self.total_consumption += consumption
             # model-level aggregator
