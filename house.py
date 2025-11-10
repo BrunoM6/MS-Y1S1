@@ -14,15 +14,24 @@ class Room(mesa.Agent):
         self.appliances: List = []
 
     def update_temperature(self, external_temp: float, house_insulation: float):
-        exchange_rate = 1 - house_insulation
+        # Calculate heat exchange with outside (reduced rate)
+        exchange_rate = (1 - house_insulation) * 0.1  # Much slower exchange
         temp_diff = external_temp - self.temperature
         self.temperature += temp_diff * exchange_rate
 
         for appliance in self.appliances:
             if appliance.appliance_type == ApplianceType.HEATER and appliance.is_on:
-                self.temperature += 0.5
+                # Heater works harder when it's colder outside
+                heating_power = 2.0  # Base
+                if self.temperature < 18.0:
+                    heating_power *= 1.5  # 50% more
+                self.temperature += heating_power
             elif appliance.appliance_type == ApplianceType.AIR_CONDITIONER and appliance.is_on:
-                self.temperature -= 0.5
+                # AC works harder when it's hotter outside
+                cooling_power = 2.0  # Base
+                if self.temperature > 24.0:
+                    cooling_power *= 1.5  # 50% more
+                self.temperature -= cooling_power
 
     def step(self):
         # Smart appliances should auto-turn-off when room empty
