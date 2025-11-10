@@ -82,9 +82,20 @@ class Appliance(mesa.Agent):
 
     def step(self):
         if self.is_on:
-            consumption = self.power_consumption  # 1 step = 1 hour assumption
+            # base consumption
+            consumption = self.power_consumption
+            
+            # dynamic consumption for climate control appliances
+            if self.appliance_type == ApplianceType.HEATER:
+                # heater uses more power in colder conditions
+                if self.room.temperature < 18.0:
+                    consumption *= 1.5 
+            elif self.appliance_type == ApplianceType.AIR_CONDITIONER:
+                # AC uses more power in hotter conditions
+                if self.room.temperature > 24.0:
+                    consumption *= 1.5
+            
             self.total_consumption += consumption
-            self.hours_used += 1.0
             # model-level aggregator
             if hasattr(self.model, "total_energy_consumed"):
                 self.model.total_energy_consumed += consumption
