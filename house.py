@@ -124,13 +124,14 @@ class Appliance(mesa.Agent):
             print(f"[Appliance] {self.appliance_type.name} in {self.room.room_type.name} consumed {consumption} kWh this step.")
 
 class House(mesa.Agent):
-    def __init__(self, unique_id, model, num_occupants: int = 2, insulation_quality: float = 0.5, n_kitchens: int = 1, n_living_rooms: int = 1, n_bedrooms: int = 2 ,n_bathrooms: int = 1, n_hallways: int = 1):
+    def __init__(self, unique_id, model, num_occupants: int = 2, insulation_quality: float = 0.5, n_kitchens: int = 1, n_living_rooms: int = 1, n_bedrooms: int = 2 ,n_bathrooms: int = 1, n_hallways: int = 1, smart_appliances: str = "base"):
         super().__init__(unique_id, model)
         self.insulation_quality = insulation_quality
         self.indoor_temperature = 20.0
         self.rooms: List[Room] = []
         self.occupants = []
         self.total_consumption = 0.0
+        self.smart_appliances = smart_appliances
 
         # Create rooms
         number_of_rooms: Dict[RoomType, int] = {
@@ -181,8 +182,15 @@ class House(mesa.Agent):
         }
 
         for appliance_type in appliances_by_room.get(room.room_type, []):
-            # define smart appliances (lights, mobile chargers) per policy
-            is_smart = appliance_type in [ApplianceType.LIGHTS, ApplianceType.MOBILE_CHARGER]
+            # None case: no smart appliances
+            if self.smart_appliances == "none":
+                is_smart = False
+            # All case: all appliances smart
+            elif self.smart_appliances == "all":
+                is_smart = True
+            # Base case: only lights and mobile chargers are smart
+            else:
+                is_smart = appliance_type in [ApplianceType.LIGHTS, ApplianceType.MOBILE_CHARGER]
             appliance = Appliance(self.model.next_id(), self.model, appliance_type, room, is_smart=is_smart)
             self.model.schedule.add(appliance)
 

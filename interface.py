@@ -16,6 +16,10 @@ temp_chart = ChartModule(
     [{"Label": "Average House Temp", "Color": "#1f77b4"}],
     data_collector_name='datacollector'
 )
+outside_temp_chart = ChartModule(
+    [{"Label": "External Temperature", "Color": "#ffff0e"}],
+    data_collector_name='datacollector'
+)
 
 # User-settable parameters (sliders / choice)
 model_params = {
@@ -28,12 +32,13 @@ model_params = {
     "avg_insulation_quality": Slider("Insulation quality", 0.5, 0.1, 1.0, 0.05),
     "simulation_days": Slider("Simulation days", 5, 1, 30, 1),
     "energy_price_per_kwh": Slider("Energy price (€/kWh)", 0.15, 0.01, 1.0, 0.01),
-    "weather_scenario": Choice("Weather scenario", "normal", choices=["normal", "heatwave", "cold_snap"])
+    "weather_scenario": Choice("Weather scenario", "normal", choices=["normal", "heatwave", "cold_snap"]),
+    "smart_appliances": Choice("Smart appliances", "base", choices=["none", "base", "all"])
 }
 
 server = ModularServer(
     ResidentialEnergyModel,
-    [StatusElement(), energy_chart, temp_chart],
+    [StatusElement(), energy_chart, temp_chart, outside_temp_chart],
     "Residential Energy Model",
     model_params
 )

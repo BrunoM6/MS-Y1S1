@@ -16,11 +16,12 @@ class WeatherCondition:
     is_extreme_event: bool = False
 
 class ResidentialEnergyModel(Model):
-    def __init__(self, n_kitchens: int = 1, n_living_rooms: int = 1, n_bedrooms: int = 2 ,n_bathrooms: int = 1, n_hallways: int = 1, n_occupants: int = 2, avg_insulation_quality: float = 0.5, simulation_days: int = 5, energy_price_per_kwh: float = 0.15, weather_scenario: str = "normal"):
+    def __init__(self, n_kitchens: int = 1, n_living_rooms: int = 1, n_bedrooms: int = 2 ,n_bathrooms: int = 1, n_hallways: int = 1, n_occupants: int = 2, avg_insulation_quality: float = 0.5, simulation_days: int = 5, energy_price_per_kwh: float = 0.15, weather_scenario: str = "normal", smart_appliances: str = "base"):
         super().__init__()
         self.simulation_days = simulation_days
         self.energy_price_per_kwh = energy_price_per_kwh
         self.weather_scenario = weather_scenario
+        self.smart_appliances = smart_appliances
 
         self.current_day = 0
         self.hour_of_day = 0
@@ -41,7 +42,7 @@ class ResidentialEnergyModel(Model):
         self.n_occupants = n_occupants
         self.insulation = max(0.1, min(1.0, random.gauss(avg_insulation_quality, 0.15)))
 
-        self.house = House(self.next_id(), self, self.n_occupants, self.insulation, n_kitchens, n_living_rooms, n_bedrooms, n_bathrooms, n_hallways)
+        self.house = House(self.next_id(), self, self.n_occupants, self.insulation, n_kitchens, n_living_rooms, n_bedrooms, n_bathrooms, n_hallways, self.smart_appliances)
         self.schedule.add(self.house)
 
         self.datacollector = DataCollector(
