@@ -89,7 +89,6 @@ class ResidentialEnergyModel(Model):
             # Convert from €/MWh to €/kWh
             avg_price_kwh = avg_price_mwh / 1000
             
-            # Sanity check: typical Portuguese electricity prices are 0.05-0.30 €/kWh
             if 0.01 <= avg_price_kwh <= 1.0:
                 print(f"✓ Successfully fetched REN price: {avg_price_mwh:.2f} €/MWh = {avg_price_kwh:.4f} €/kWh")
                 return round(avg_price_kwh, 4)
