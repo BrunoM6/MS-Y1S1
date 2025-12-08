@@ -56,6 +56,8 @@ class ResidentialEnergyModel(Model):
                           n_hallways, self.smart_appliances)
         self.schedule.add(self.house)
 
+        self._generate_weather_profile()
+
         self.datacollector = DataCollector(
             model_reporters={
                 "Total Energy (kWh)": lambda m: m.total_energy_consumed,
@@ -70,11 +72,35 @@ class ResidentialEnergyModel(Model):
             }
         )
 
+    def _generate_weather_profile(self):
+        total_hours = self.simulation_days * 24
+        
+        if self.weather_scenario == "heatwave":
+            base_temps = np.full(self.simulation_days + 1, 35.0)
+            is_extreme = True
+        elif self.weather_scenario == "cold_snap":
+            base_temps = np.full(self.simulation_days + 1, -5.0)
+            is_extreme = True
+        else:
+            # smooth variation
+            days = np.arange(self.simulation_days + 1)
+            base_temps = self.base_temperature + 5 * np.sin(days * np.pi / 15)
+            # random variation at daily level (smoother than hourly)
+            base_temps += np.random.normal(0, 1, len(base_temps))
+            is_extreme = False
+        
+        daily_hours = np.arange(self.simulation_days + 1) * 24
+        all_hours = np.arange(total_hours)
+        base_temp_hourly = np.interp(all_hours, daily_hours, base_temps)
+        
+        hours_in_cycle = all_hours % 24
+        daily_variation = 5 * np.sin((hours_in_cycle - 6) * np.pi / 12)
+        
+        self.weather_temps = base_temp_hourly + daily_variation + np.random.normal(0, 0.3, total_hours)
+        self.is_extreme = is_extreme
+
     def _fetch_ren_price(self, ren_month: str) -> float:
-        """
-        Fetch electricity price from REN API for the specified month
-        Format: "YYYY-MM"
-        """
+
         try:
             year, month = map(int, ren_month.split('-'))
             ren = RENDataHub()
@@ -103,23 +129,17 @@ class ResidentialEnergyModel(Model):
             return 0.15
 
     def get_current_weather(self) -> WeatherCondition:
+        """Get pre-generated smooth weather for current hour"""
         hour = self.hour_of_day
-        day = self.current_day
-        daily_variation = 5 * np.sin((hour - 6) * np.pi / 12)
-
-        if self.weather_scenario == "heatwave":
-            base_temp = 35.0
-            is_extreme = True
-        elif self.weather_scenario == "cold_snap":
-            base_temp = -5.0
-            is_extreme = True
-        else:
-            base_temp = self.base_temperature + 5 * np.sin(day * np.pi / 15)
-            is_extreme = False
-
-        temperature = base_temp + daily_variation + random.gauss(0, 2)
+        current_hour_index = self.current_day * 24 + hour
+        
+        # Use pre-generated temperature
+        temperature = self.weather_temps[min(current_hour_index, len(self.weather_temps) - 1)]
+        
+        # Solar radiation based on time of day
         solar_radiation = max(0, 800 * np.sin((hour - 6) * np.pi / 12))
-        return WeatherCondition(temperature, solar_radiation, hour, is_extreme)
+        
+        return WeatherCondition(temperature, solar_radiation, hour, self.is_extreme)
 
     def step(self):
         self.schedule.step()
