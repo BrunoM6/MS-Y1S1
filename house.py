@@ -25,7 +25,7 @@ class Room(mesa.Agent):
                 heating_power = 2.0  # Base power
                 
                 if self.temperature < 10.0:
-                    heating_power *= 4.0 
+                    heating_power *= 4.0
                 elif self.temperature < 14.0:
                     heating_power *= 3.0
                 elif self.temperature < 18.0:
@@ -65,7 +65,7 @@ class Appliance(mesa.Agent):
         ApplianceType.LIGHTS: 0.06,
         ApplianceType.HEATER: 2.0,
         ApplianceType.AIR_CONDITIONER: 2.5,
-        ApplianceType.WATER_HEATER: 3.0,
+        ApplianceType.WATER_HEATER: 0.00116, # energy (kWh) to heat 1L of water (kWh/L/°C)
         ApplianceType.MOBILE_CHARGER: 0.01
     }
 
@@ -85,6 +85,13 @@ class Appliance(mesa.Agent):
 
         room.appliances.append(self)
 
+    def _get_occupant_count(self):
+        count = 0
+        for agent in self.model.schedule.agents:
+            if agent.__class__.__name__ == "Person":
+                count += 1
+        return count if count > 0 else 1
+
     def turn_on(self):
         self.is_on = True
 
@@ -95,33 +102,54 @@ class Appliance(mesa.Agent):
 
     def step(self):
         if self.is_on:
-            # base consumption
-            consumption = self.power_consumption
-            
-            # Dynamic consumption for climate control appliances with graduated scaling
-            if self.appliance_type == ApplianceType.HEATER:
-                # Heater uses more power the colder it is
-                if self.room.temperature < 10.0: 
-                    consumption *= 4.0 
-                elif self.room.temperature < 14.0: 
-                    consumption *= 3.0
-                elif self.room.temperature < 18.0:
-                    consumption *= 2.0
+            if self.appliance_type == ApplianceType.WATER_HEATER:
+                outside_temp = self.model.get_current_weather().temperature
+
+                n = self._get_occupant_count()
+                V_person = 50.0 # average liters used per shower
+                T_target = 60.0 # kills bacteria, necessary for safety
+                Delta_T = T_target - outside_temp
+
+                room_temp = self.room.temperature
+                base_loss = 1.2 # standard loss at 20 C room (kwh)
+                loss_factor = 1.0 + (max(0, 20.0 - room_temp) * 0.02) # 2% loss increase for each degree below 20
+                L_tank = base_loss * loss_factor
+
+                # apply formula based on water properties
+                factor = 0.00116
+                E_daily = (n * V_person * Delta_T * factor) + L_tank
+
+                consumption = E_daily / 24
+                print(f"[Appliance] {self.appliance_type.name} in {self.room.room_type.name} consumed {consumption} kWh this step.")
+
+            else:
+                # base consumption
+                consumption = self.power_consumption
                 
-            elif self.appliance_type == ApplianceType.AIR_CONDITIONER:
-                # AC uses more power the hotter it is
-                if self.room.temperature > 32.0:
-                    consumption *= 4.0
-                elif self.room.temperature > 28.0:
-                    consumption *= 3.0
-                elif self.room.temperature > 24.0:
-                    consumption *= 2.0
-            
-            self.total_consumption += consumption
-            # model-level aggregator
-            if hasattr(self.model, "total_energy_consumed"):
-                self.model.total_energy_consumed += consumption
-            print(f"[Appliance] {self.appliance_type.name} in {self.room.room_type.name} consumed {consumption} kWh this step.")
+                # Dynamic consumption for climate control appliances with graduated scaling
+                if self.appliance_type == ApplianceType.HEATER:
+                    # Heater uses more power the colder it is
+                    if self.room.temperature < 10.0: 
+                        consumption *= 4.0 
+                    elif self.room.temperature < 14.0: 
+                        consumption *= 3.0
+                    elif self.room.temperature < 18.0:
+                        consumption *= 2.0
+                    
+                elif self.appliance_type == ApplianceType.AIR_CONDITIONER:
+                    # AC uses more power the hotter it is
+                    if self.room.temperature > 32.0:
+                        consumption *= 4.0
+                    elif self.room.temperature > 28.0:
+                        consumption *= 3.0
+                    elif self.room.temperature > 24.0:
+                        consumption *= 2.0
+                
+                self.total_consumption += consumption
+                # model-level aggregator
+                if hasattr(self.model, "total_energy_consumed"):
+                    self.model.total_energy_consumed += consumption
+                print(f"[Appliance] {self.appliance_type.name} in {self.room.room_type.name} consumed {consumption} kWh this step.")
 
 class House(mesa.Agent):
     def __init__(self, unique_id, model, num_occupants: int = 2, insulation_quality: float = 0.5, n_kitchens: int = 1, n_living_rooms: int = 1, n_bedrooms: int = 2 ,n_bathrooms: int = 1, n_hallways: int = 1, smart_appliances: str = "base"):
