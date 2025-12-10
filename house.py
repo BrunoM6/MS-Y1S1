@@ -93,8 +93,13 @@ class Appliance(mesa.Agent):
             if not self.is_on:
                 self.turn_on()
                 self.cycle_duration = duration_hours
-                # Distribute total energy over the duration
-                self.cycle_energy_per_hour = self.power_consumption / duration_hours
+                # Per hour consumption
+                if self.appliance_type == ApplianceType.STOVE:
+                    self.cycle_energy_per_hour = self.power_consumption
+                # Distributed consumption
+                else:
+                    # Distribute total energy over the duration
+                    self.cycle_energy_per_hour = self.power_consumption / duration_hours
 
     def _get_occupant_count(self):
         count = 0
@@ -114,12 +119,27 @@ class Appliance(mesa.Agent):
     def step(self):
         consumption = 0.0
         if self.is_on:
-            if self.appliance_type == ApplianceType.DISHWASHER:
+            if self.appliance_type == ApplianceType.REFRIGERATOR:
+                # Base consumption is rated at standard room temp (e.g. 20°C)
+                # Efficiency drops as outside temp rises.
+                # Approx rule: +5% energy per degree above 20°C
+                room_temp = self.room.temperature
+                
+                # Calculate thermodynamic factor (capped to avoid crazy values)
+                temp_factor = 1.0 + (max(0, room_temp - 20.0) * 0.05)
+                
+                consumption = self.power_consumption * temp_factor
+                
+                # Debug print to see the effect
+                print(f"Fridge in {room_temp:.1f}°C room using {consumption:.3f} kWh (Factor: {temp_factor:.2f})")
+
+            elif self.appliance_type in [ApplianceType.DISHWASHER, ApplianceType.STOVE]:
                 # Cycle-based logic
                 if self.cycle_duration > 0:
-                    consumption = self.cycle_energy_per_hour
+                    step_duration = min(1.0, self.cycle_duration)
+                    consumption = self.cycle_energy_per_hour * step_duration
                     self.cycle_duration -= 1
-                    print(f"[Appliance] Dishwasher running. {self.cycle_duration} hours left.")
+                    print(f"[Appliance] {self.appliance_type.name} running. {self.cycle_duration} hours left.")
                 else:
                     self.turn_off()
 
@@ -176,7 +196,7 @@ class House(mesa.Agent):
     def __init__(self, unique_id, model, num_occupants: int = 2, insulation_quality: float = 0.5, n_kitchens: int = 1, n_living_rooms: int = 1, n_bedrooms: int = 2 ,n_bathrooms: int = 1, n_hallways: int = 1, smart_appliances: str = "base"):
         super().__init__(unique_id, model)
         self.insulation_quality = insulation_quality
-        self.indoor_temperature = 20.0
+        self.indoor_temperature = 15
         self.rooms: List[Room] = []
         self.occupants = []
         self.total_consumption = 0.0
