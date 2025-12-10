@@ -15,7 +15,7 @@ class Room(mesa.Agent):
 
     def update_temperature(self, external_temp: float, house_insulation: float):
         # Calculate heat exchange with outside (reduced rate)
-        exchange_rate = (1 - house_insulation) * 0.1
+        exchange_rate = (1 - house_insulation) * 0.04 # based on real-world thermal constants .5 models average behaviour
         temp_diff = external_temp - self.temperature
         self.temperature += temp_diff * exchange_rate
 
@@ -57,9 +57,9 @@ class Room(mesa.Agent):
 class Appliance(mesa.Agent):
     POWER_CONSUMPTION = {
         ApplianceType.REFRIGERATOR: 0.15,
-        ApplianceType.STOVE: 2.5,
+        ApplianceType.STOVE: 2.0,
         ApplianceType.WASHING_MACHINE: 1.5,
-        ApplianceType.DISHWASHER: 1.8,
+        ApplianceType.DISHWASHER: 1.2,
         ApplianceType.TV: 0.15,
         ApplianceType.COMPUTER: 0.2,
         ApplianceType.LIGHTS: 0.06,
@@ -79,11 +79,22 @@ class Appliance(mesa.Agent):
         self.hours_used = 0.0
         self.total_consumption = 0.0
 
+        # start an Appliance cycle 
+        self.cycle_duration = 0  # hours remaining in current cycle
+        self.cycle_energy_per_hour = 0.0
+
         # Refrigerator and water heater are always on
         if appliance_type in [ApplianceType.REFRIGERATOR, ApplianceType.WATER_HEATER]:
             self.is_on = True
 
         room.appliances.append(self)
+
+    def start_cycle(self, duration_hours: int = 2):
+            if not self.is_on:
+                self.turn_on()
+                self.cycle_duration = duration_hours
+                # Distribute total energy over the duration
+                self.cycle_energy_per_hour = self.power_consumption / duration_hours
 
     def _get_occupant_count(self):
         count = 0
@@ -101,8 +112,18 @@ class Appliance(mesa.Agent):
             self.is_on = False
 
     def step(self):
+        consumption = 0.0
         if self.is_on:
-            if self.appliance_type == ApplianceType.WATER_HEATER:
+            if self.appliance_type == ApplianceType.DISHWASHER:
+                # Cycle-based logic
+                if self.cycle_duration > 0:
+                    consumption = self.cycle_energy_per_hour
+                    self.cycle_duration -= 1
+                    print(f"[Appliance] Dishwasher running. {self.cycle_duration} hours left.")
+                else:
+                    self.turn_off()
+
+            elif self.appliance_type == ApplianceType.WATER_HEATER:
                 outside_temp = self.model.get_current_weather().temperature
 
                 n = self._get_occupant_count()
