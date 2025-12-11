@@ -6,8 +6,13 @@ from ren import RENDataHub
 
 class StatusElement(TextElement):
     def render(self, model):
-        return f"Day: {model.current_day}  Hour: {model.hour_of_day}  Total kWh: {model.total_energy_consumed:.2f}  Price: €{model.energy_price_per_kwh:.4f}/kWh"
-
+        total_kwh = getattr(model, "total_energy_consumed", 0.0)
+        price = getattr(model, "energy_price_per_kwh", 0.0)
+        day = getattr(model, "current_day", 0)
+        hour = getattr(model, "hour_of_day", 0)
+        
+        return f"Day: {day}  Hour: {hour}  Total kWh: {total_kwh:.2f}  Price: €{price:.4f}/kWh"
+    
 # Chart modules that match the keys in ResidentialEnergyModel.datacollector
 energy_chart = ChartModule(
     [{"Label": "Total Energy (kWh)", "Color": "#d62728"}],
@@ -42,8 +47,7 @@ def get_ren_price(year: int, month: int) -> float:
             print(f"No data returned for {year}-{month:02d}, using default price")
             return 0.15
         
-        # REN API typically returns prices in €/MWh, need to convert to €/kWh
-        # Adjust this based on actual column names in the API response
+
         if 'Price' in df.columns:
             avg_price_mwh = df['Price'].mean()
             avg_price_kwh = avg_price_mwh / 1000  # Convert MWh to kWh
@@ -51,12 +55,11 @@ def get_ren_price(year: int, month: int) -> float:
             avg_price_mwh = df['price'].mean()
             avg_price_kwh = avg_price_mwh / 1000
         else:
-            # If column structure is different, print columns and use default
+
             print(f"Available columns: {df.columns.tolist()}")
             print("Using default price of 0.15 €/kWh")
             return 0.15
         
-        # Sanity check: prices should be reasonable (between 0.01 and 1.0 €/kWh)
         if 0.01 <= avg_price_kwh <= 1.0:
             return round(avg_price_kwh, 4)
         else:
