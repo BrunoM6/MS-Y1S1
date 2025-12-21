@@ -14,37 +14,79 @@ class Room(mesa.Agent):
         self.appliances: List = []
 
     def update_temperature(self, external_temp: float, house_insulation: float):
-        # Calculate heat exchange with outside (reduced rate)
-        exchange_rate = (1 - house_insulation) * 0.04 # based on real-world thermal constants .5 models average behaviour
+        # 1. Passive Physics
+        exchange_rate = (1 - house_insulation) * 0.05 
         temp_diff = external_temp - self.temperature
         self.temperature += temp_diff * exchange_rate
 
+        # 2. Smart Occupancy Targets
+        if len(self.occupants) > 0:
+            TARGET_HEAT = 17.0
+            TARGET_COOL = 23.0
+        else:
+            TARGET_HEAT = 12.0 
+            TARGET_COOL = 28.0 
+
+        TOLERANCE = 1.0 
+
         for appliance in self.appliances:
-            if appliance.appliance_type == ApplianceType.HEATER and appliance.is_on:
-                # Graduated heating power based on how cold it is
-                heating_power = 2.0  # Base power
+            
+            # --- HEATER LOGIC ---
+            if appliance.appliance_type == ApplianceType.HEATER:
                 
-                if self.temperature < 10.0:
-                    heating_power *= 4.0
-                elif self.temperature < 14.0:
-                    heating_power *= 3.0
-                elif self.temperature < 18.0:
-                    heating_power *= 2.0
-                
-                self.temperature += heating_power
-                
-            elif appliance.appliance_type == ApplianceType.AIR_CONDITIONER and appliance.is_on:
-                # Graduated cooling power based on how hot it is
-                cooling_power = 2.0  # Base power
-                
-                if self.temperature > 32.0:
-                    cooling_power *= 4.0 
-                elif self.temperature > 28.0:
-                    cooling_power *= 3.0 
-                elif self.temperature > 24.0:
-                    cooling_power *= 2.0 
-                
-                self.temperature -= cooling_power
+                is_heating = getattr(appliance, 'hysteresis_active', False)
+
+                # ON
+                if self.temperature < (TARGET_HEAT - TOLERANCE):
+                    appliance.turn_on()
+                    appliance.hysteresis_active = True
+                    is_heating = True
+                # OFF
+                elif self.temperature > (TARGET_HEAT + TOLERANCE):
+                    appliance.turn_off()
+                    appliance.current_load = 0.0
+                    appliance.hysteresis_active = False
+                    is_heating = False
+
+                if is_heating:
+                    needed = (TARGET_HEAT + TOLERANCE) - self.temperature
+                    
+                    
+                    max_power = 2.5 
+                    
+                    if self.temperature < 5.0: max_power *= 2.0 # Turbo for freezing rooms
+                    
+            
+                    actual_change = min(needed, max_power)
+                    self.temperature += actual_change
+                    
+                   
+                    # Ex: Load = 0.5 / 2.5 = 0.2 (20% power usage) -> Cost = 0.4 kWh
+                    appliance.current_load = actual_change / max_power
+
+            # --- A/C LOGIC ---
+            elif appliance.appliance_type == ApplianceType.AIR_CONDITIONER:
+                is_cooling = getattr(appliance, 'hysteresis_active', False)
+
+                if self.temperature > (TARGET_COOL + TOLERANCE):
+                    appliance.turn_on()
+                    appliance.hysteresis_active = True
+                    is_cooling = True
+                elif self.temperature < (TARGET_COOL - TOLERANCE):
+                    appliance.turn_off()
+                    appliance.current_load = 0.0
+                    appliance.hysteresis_active = False
+                    is_cooling = False
+
+                if is_cooling:
+                    needed = self.temperature - (TARGET_COOL - TOLERANCE)
+                    
+                    # Restore AC capacity too
+                    max_power = 3.0 
+                    
+                    actual_change = min(needed, max_power)
+                    self.temperature -= actual_change
+                    appliance.current_load = actual_change / max_power
 
     def step(self):
         # Smart appliances should auto-turn-off when room empty
@@ -78,6 +120,7 @@ class Appliance(mesa.Agent):
         self.power_consumption = self.POWER_CONSUMPTION[appliance_type]
         self.hours_used = 0.0
         self.total_consumption = 0.0
+        self.current_load = 0.0
 
         # start an Appliance cycle 
         self.cycle_duration = 0  # hours remaining in current cycle
@@ -168,23 +211,22 @@ class Appliance(mesa.Agent):
                 consumption = self.power_consumption
                 
                 # Dynamic consumption for climate control appliances with graduated scaling
-                if self.appliance_type == ApplianceType.HEATER:
-                    # Heater uses more power the colder it is
-                    if self.room.temperature < 10.0: 
-                        consumption *= 4.0 
-                    elif self.room.temperature < 14.0: 
-                        consumption *= 3.0
-                    elif self.room.temperature < 18.0:
-                        consumption *= 2.0
+                if self.appliance_type in [ApplianceType.HEATER, ApplianceType.AIR_CONDITIONER]:
+                    if hasattr(self, 'current_load') and self.current_load > 0:
+                        
+                        # Base consumption * Load Factor
+                     
+                        usage_multiplier = 1.0
+                        if self.appliance_type == ApplianceType.HEATER and self.room.temperature < 10:
+                            usage_multiplier = 2.0
+                        elif self.appliance_type == ApplianceType.AIR_CONDITIONER and self.room.temperature > 30:
+                            usage_multiplier = 2.0
+
+                        consumption = self.power_consumption * self.current_load * usage_multiplier
                     
-                elif self.appliance_type == ApplianceType.AIR_CONDITIONER:
-                    # AC uses more power the hotter it is
-                    if self.room.temperature > 32.0:
-                        consumption *= 4.0
-                    elif self.room.temperature > 28.0:
-                        consumption *= 3.0
-                    elif self.room.temperature > 24.0:
-                        consumption *= 2.0
+                    else:
+                        # Standby consumption (thermostat monitoring)
+                        consumption = 0.01
                 
                 self.total_consumption += consumption
                 # model-level aggregator
@@ -193,6 +235,13 @@ class Appliance(mesa.Agent):
                 print(f"[Appliance] {self.appliance_type.name} in {self.room.room_type.name} consumed {consumption} kWh this step.")
 
 class House(mesa.Agent):
+    ROOM_VOLUMES = {
+            RoomType.LIVING_ROOM: 0.35, 
+            RoomType.BEDROOM: 0.25,
+            RoomType.KITCHEN: 0.15,
+            RoomType.HALLWAY: 0.10,
+            RoomType.BATHROOM: 0.05
+        }
     def __init__(self, unique_id, model, num_occupants: int = 2, insulation_quality: float = 0.5, n_kitchens: int = 1, n_living_rooms: int = 1, n_bedrooms: int = 2 ,n_bathrooms: int = 1, n_hallways: int = 1, smart_appliances: str = "base"):
         super().__init__(unique_id, model)
         self.insulation_quality = insulation_quality
@@ -211,6 +260,7 @@ class House(mesa.Agent):
             RoomType.HALLWAY: n_hallways
         }
 
+
         for room_type, count in number_of_rooms.items():
             for _ in range(count):
                 has_window = room_type in [RoomType.KITCHEN, RoomType.LIVING_ROOM, RoomType.BEDROOM]
@@ -228,7 +278,7 @@ class House(mesa.Agent):
                 ApplianceType.REFRIGERATOR,
                 ApplianceType.STOVE,
                 ApplianceType.DISHWASHER,
-                ApplianceType.LIGHTS
+                ApplianceType.LIGHTS,
             ],
             RoomType.LIVING_ROOM: [
                 ApplianceType.TV,
@@ -239,6 +289,7 @@ class House(mesa.Agent):
                 ApplianceType.LIGHTS,
                 ApplianceType.COMPUTER,
                 ApplianceType.MOBILE_CHARGER,
+                ApplianceType.AIR_CONDITIONER,
                 ApplianceType.HEATER
             ],
             RoomType.BATHROOM: [
@@ -282,8 +333,32 @@ class House(mesa.Agent):
         for room in self.rooms:
             room.update_temperature(weather.temperature, self.insulation_quality)
 
+    # Simulate air circulation. Warm air from Living Room moves to the Hallway.
+    def distribute_heat(self):
+
+        # Calculate the Weighted Average Temperature of the whole house
+        total_volume = 0.0
+        weighted_temp_sum = 0.0
+        
+        for room in self.rooms:
+            # Get volume weight
+            weight = self.ROOM_VOLUMES.get(room.room_type, 0.1)
+            weighted_temp_sum += room.temperature * weight
+            total_volume += weight
+            
+        avg_house_temp = weighted_temp_sum / total_volume
+
+        # 2. Mix the air
+        AIR_MIXING_RATE = 0.3 
+
+        for room in self.rooms:
+            diff = avg_house_temp - room.temperature
+            room.temperature += diff * AIR_MIXING_RATE
+
     def step(self):
         self.update_temperature()
         # let rooms enforce smart policies
         for room in self.rooms:
             room.step()
+
+        self.distribute_heat()
