@@ -59,6 +59,7 @@ class Person(mesa.Agent if False else object):  # keep simple for tests / not ru
             for appliance in room.appliances:
                 if appliance.appliance_type == ApplianceType.LIGHTS:
                     appliance.turn_on()
+                    if appliance.is_smart: appliance.is_being_used = True
 
     def perform_activity(self, activity: str):
         hour = self.model.hour_of_day
@@ -119,12 +120,23 @@ class Person(mesa.Agent if False else object):  # keep simple for tests / not ru
                             if random.random() > 0.8:
                                 appliance.turn_on()
             else:
-                living_room = self.house.get_room_by_type(RoomType.LIVING_ROOM)
-                if living_room:
-                    self.move_to_room(living_room)
-                    for appliance in living_room.appliances:
-                        if appliance.appliance_type == ApplianceType.TV and random.random() > 0.3:
-                            appliance.turn_on()
+                # Either living room or bedroom
+                if random.random() > 0.4:
+                    living_room = self.house.get_room_by_type(RoomType.LIVING_ROOM)
+                    if living_room:
+                        self.move_to_room(living_room)
+                        for appliance in living_room.appliances:
+                            if appliance.appliance_type == ApplianceType.TV and random.random() > 0.3:
+                                appliance.turn_on()
+                                if appliance.is_smart: appliance.is_being_used = True
+                else:
+                    bedroom = self.house.get_room_by_type(RoomType.BEDROOM)
+                    if bedroom:
+                        self.move_to_room(bedroom)
+                        for appliance in bedroom.appliances:
+                            if appliance.appliance_type == ApplianceType.COMPUTER and random.random() > 0.3:
+                                appliance.turn_on()
+                                if appliance.is_smart: appliance.is_being_used = True
 
             # Charge mobile devices occasionally
             if random.random() > 0.7:
@@ -132,6 +144,7 @@ class Person(mesa.Agent if False else object):  # keep simple for tests / not ru
                     for appliance in room.appliances:
                         if appliance.appliance_type == ApplianceType.MOBILE_CHARGER:
                             appliance.turn_on()
+                            if appliance.is_smart: appliance.is_being_used = True
 
     def respond_to_temperature(self):
         if not self.is_home or not self.current_room:

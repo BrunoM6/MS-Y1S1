@@ -47,6 +47,7 @@ class ResidentialEnergyModel(Model):
         self.energy_price_per_kwh = self._fetch_ren_price(ren_month)
 
         self.schedule = RandomActivation(self)
+        self.avg_insulation_quality = avg_insulation_quality
         # Randomize insulation slightly around the slider value
         self.insulation = max(0.1, min(1.0, random.gauss(avg_insulation_quality, 0.15)))
         self.base_temperature = 15.0

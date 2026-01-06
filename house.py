@@ -130,6 +130,12 @@ class Appliance(mesa.Agent):
         if appliance_type in [ApplianceType.REFRIGERATOR, ApplianceType.WATER_HEATER]:
             self.is_on = True
 
+        # Smart appliance tracking variables
+        if self.is_smart:
+            self.is_being_used = False
+            self.inactive_time = 0
+            self.max_idle_time = 2
+
         room.appliances.append(self)
 
     def start_cycle(self, duration_hours: int = 2):
@@ -153,6 +159,10 @@ class Appliance(mesa.Agent):
 
     def turn_on(self):
         self.is_on = True
+        # Mark smart appliance as used (resets idle timer for smart appliances)
+        if self.is_smart:
+            self.is_being_used = True
+            self.inactive_time = 0
 
     def turn_off(self):
         # Some appliances stay on
@@ -160,6 +170,17 @@ class Appliance(mesa.Agent):
             self.is_on = False
 
     def step(self):
+        # Reset usage flag for next step
+        if self.is_smart:
+            self.is_being_used = False
+
+        # If appliance is smart, is turned on and isn't being used start idle timer logic
+        if self.is_smart and self.is_on and not self.is_being_used:
+            self.inactive_time += 1
+            if self.inactive_time >= self.max_idle_time:
+                self.turn_off()
+                print(f"[Appliance] {self.appliance_type.name} in {self.room.room_type.name} auto-turned off due to inactivity.")
+
         consumption = 0.0
         if self.is_on:
             if self.appliance_type == ApplianceType.REFRIGERATOR:
@@ -204,7 +225,6 @@ class Appliance(mesa.Agent):
                 E_daily = (n * V_person * Delta_T * factor) + L_tank
 
                 consumption = E_daily / 24
-                print(f"[Appliance] {self.appliance_type.name} in {self.room.room_type.name} consumed {consumption} kWh this step.")
 
             else:
                 # base consumption
@@ -228,11 +248,11 @@ class Appliance(mesa.Agent):
                         # Standby consumption (thermostat monitoring)
                         consumption = 0.01
                 
-                self.total_consumption += consumption
-                # model-level aggregator
-                if hasattr(self.model, "total_energy_consumed"):
-                    self.model.total_energy_consumed += consumption
-                print(f"[Appliance] {self.appliance_type.name} in {self.room.room_type.name} consumed {consumption} kWh this step.")
+            self.total_consumption += consumption
+            # model-level aggregator
+            if hasattr(self.model, "total_energy_consumed"):
+                self.model.total_energy_consumed += consumption
+            print(f"[Appliance] {self.appliance_type.name} in {self.room.room_type.name} consumed {consumption} kWh this step.")
 
 class House(mesa.Agent):
     ROOM_VOLUMES = {
@@ -305,9 +325,9 @@ class House(mesa.Agent):
             # None case: no smart appliances
             if self.smart_appliances == "none":
                 is_smart = False
-            # All case: all appliances smart
+            # All case: Lights, Mobile Charger, TV and Computer are smart
             elif self.smart_appliances == "all":
-                is_smart = True
+                is_smart = appliance_type in [ApplianceType.LIGHTS, ApplianceType.MOBILE_CHARGER, ApplianceType.TV, ApplianceType.COMPUTER]
             # Base case: only lights and mobile chargers are smart
             else:
                 is_smart = appliance_type in [ApplianceType.LIGHTS, ApplianceType.MOBILE_CHARGER]

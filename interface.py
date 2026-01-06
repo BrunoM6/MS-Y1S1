@@ -3,6 +3,21 @@ from mesa.visualization.modules import ChartModule, TextElement
 from mesa.visualization.UserParam import Slider, Choice
 from world import ResidentialEnergyModel
 from ren import RENDataHub
+from results import SimulationResultsManager
+
+class SaveResidentialEnergyModel(ResidentialEnergyModel):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._results_saved = False
+
+    def step(self):
+        super().step()
+
+        # After simulation completes, save results
+        if not self.running and not self._results_saved:
+            self._results_saved = True
+            save_simulation_results(self)
+
 
 class StatusElement(TextElement):
     def render(self, model):
@@ -84,6 +99,13 @@ class MonthYearChoice(Choice):
         except:
             return 0.15
 
+def save_simulation_results(model):
+    results_manager = SimulationResultsManager()
+    run_name = f"run_{model.weather_scenario}_{model.smart_appliances}_{model.current_day}days"
+    results_manager.save_run(model, run_name=run_name)
+    print(f"Saved results")
+
+
 # Generate month choices for 2024
 month_choices = [f"2024-{month:02d}" for month in range(1, 13)]
 month_labels = {
@@ -109,7 +131,7 @@ model_params = {
 }
 
 server = ModularServer(
-    ResidentialEnergyModel,
+    SaveResidentialEnergyModel,
     [StatusElement(), energy_chart, temp_chart, outside_temp_chart, cost_chart],
     "Residential Energy Model",
     model_params
