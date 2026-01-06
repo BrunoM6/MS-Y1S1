@@ -49,6 +49,7 @@ class SimulationResultsManager:
 
         # Get data from datacollector
         df = model.datacollector.get_model_vars_dataframe()
+        df.index.name = "Iteration"
         df.to_csv(simulation_results_file, index=True)
 
         print(f"Results saved to: {run_dir}")
