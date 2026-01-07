@@ -21,7 +21,7 @@ class Room(mesa.Agent):
 
         # 2. Smart Occupancy Targets
         if len(self.occupants) > 0:
-            TARGET_HEAT = 17.0
+            TARGET_HEAT = 20.0
             TARGET_COOL = 23.0
         else:
             TARGET_HEAT = 12.0 
