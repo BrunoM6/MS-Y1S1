@@ -44,6 +44,21 @@ class SimulationResultsManager:
         with open(config_file, 'w') as f:
             json.dump(config, f, indent=2)
 
+        total_consumption = model.total_energy_consumed
+        appliance_breakdown = {}
+
+        for app_type, consumption in model.consumption_by_appliance.items():
+            if consumption > 0:
+                percentage = (consumption / total_consumption * 100) if total_consumption > 0 else 0.0
+                appliance_breakdown[app_type.name] = {
+                    "kWh": round(consumption, 2),
+                    "percentage": round(percentage, 2)
+                }
+
+        breakdown_file = run_dir / "appliance_breakdown.json"
+        with open(breakdown_file, 'w') as f:
+            json.dump(appliance_breakdown, f, indent=2)
+
         # Save simulation results as CSV
         simulation_results_file = run_dir / "simulation_results.csv"
 

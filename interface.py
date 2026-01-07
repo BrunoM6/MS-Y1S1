@@ -25,9 +25,28 @@ class StatusElement(TextElement):
         price = getattr(model, "energy_price_per_kwh", 0.0)
         day = getattr(model, "current_day", 0)
         hour = getattr(model, "hour_of_day", 0)
-        
+
         return f"Day: {day}  Hour: {hour}  Total kWh: {total_kwh:.2f}  Price: €{price:.4f}/kWh"
-    
+
+
+class ApplianceBreakdownElement(TextElement):
+    def render(self, model):
+        total = model.total_energy_consumed
+        if total == 0:
+            return "Waiting for consumption data..."
+
+        breakdown_html = "<h3>Energy by Appliance</h3><table style='border-collapse: collapse; width: 100%;'>"
+        breakdown_html += "<tr style='background-color: #f0f0f0;'><th style='border: 1px solid #ddd; padding: 8px;'>Appliance</th><th style='border: 1px solid #ddd; padding: 8px;'>kWh</th><th style='border: 1px solid #ddd; padding: 8px;'>%</th></tr>"
+
+        for app_type, consumption in sorted(model.consumption_by_appliance.items(), key=lambda x: x[1], reverse=True):
+            if consumption > 0:
+                percentage = (consumption / total * 100)
+                breakdown_html += f"<tr><td style='border: 1px solid #ddd; padding: 8px;'>{app_type.name}</td><td style='border: 1px solid #ddd; padding: 8px;'>{consumption:.2f}</td><td style='border: 1px solid #ddd; padding: 8px;'>{percentage:.1f}%</td></tr>"
+
+        breakdown_html += "</table>"
+        return breakdown_html
+
+
 # Chart modules that match the keys in ResidentialEnergyModel.datacollector
 energy_chart = ChartModule(
     [{"Label": "Total Energy (kWh)", "Color": "#d62728"}],
@@ -57,7 +76,7 @@ def get_ren_price(year: int, month: int) -> float:
     try:
         ren = RENDataHub()
         df = ren.get_monthly_price(year, month)
-        
+
         if df.empty:
             print(f"No data returned for {year}-{month:02d}, using default price")
             return 0.15
@@ -74,13 +93,13 @@ def get_ren_price(year: int, month: int) -> float:
             print(f"Available columns: {df.columns.tolist()}")
             print("Using default price of 0.15 €/kWh")
             return 0.15
-        
+
         if 0.01 <= avg_price_kwh <= 1.0:
             return round(avg_price_kwh, 4)
         else:
             print(f"Price {avg_price_kwh} out of expected range, using default")
             return 0.15
-            
+
     except Exception as e:
         print(f"Error fetching REN data: {e}")
         return 0.15
@@ -89,11 +108,11 @@ def get_ren_price(year: int, month: int) -> float:
 class MonthYearChoice(Choice):
     def __init__(self, name, value=None, choices=None):
         super().__init__(name, value, choices)
-    
+
     def get_price_for_selection(self, selection: str) -> float:
         """Parse selection string and fetch price from REN API"""
         try:
-            # Format: "2024-01" 
+            # Format: "2024-01"
             year, month = map(int, selection.split('-'))
             return get_ren_price(year, month)
         except:
@@ -132,7 +151,7 @@ model_params = {
 
 server = ModularServer(
     SaveResidentialEnergyModel,
-    [StatusElement(), energy_chart, temp_chart, outside_temp_chart, cost_chart],
+    [StatusElement(), energy_chart, temp_chart, outside_temp_chart, cost_chart, ApplianceBreakdownElement()],
     "Residential Energy Model",
     model_params
 )

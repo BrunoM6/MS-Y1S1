@@ -252,6 +252,9 @@ class Appliance(mesa.Agent):
             # model-level aggregator
             if hasattr(self.model, "total_energy_consumed"):
                 self.model.total_energy_consumed += consumption
+            # Track consumption by appliance
+            if hasattr(self.model, "consumption_by_appliance"):
+                self.model.consumption_by_appliance[self.appliance_type] += consumption
             print(f"[Appliance] {self.appliance_type.name} in {self.room.room_type.name} consumed {consumption} kWh this step.")
 
 class House(mesa.Agent):
