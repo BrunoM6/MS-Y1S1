@@ -1,10 +1,25 @@
-import random
 from typing import List, Optional, Dict
 import mesa
 from enums import RoomType, ApplianceType
 
+"""
+This module defines the House, Room, and Appliance classes for the Residential Energy Model.
+"""
+
 class Room(mesa.Agent):
+    """
+    Agent representing a room in the house.
+
+    Attributes:
+        room_type (RoomType): Type of the room (e.g., KITCHEN, BEDROOM).
+        temperature (float): Current temperature of the room in Celsius.
+        has_window (bool): Indicates if the room has a window.
+        lights_on (bool): Indicates if the lights are on.
+        occupants (List): List of occupants currently in the room.
+        appliances (List): List of appliances in the room.
+    """
     def __init__(self, unique_id, model, room_type: RoomType, has_window: bool, temperature: float = 20.0, lights_on: bool = False):
+        """Initialize a room with given parameters."""
         super().__init__(unique_id, model)
         self.room_type = room_type
         self.temperature = temperature
@@ -14,6 +29,7 @@ class Room(mesa.Agent):
         self.appliances: List = []
 
     def update_temperature(self, external_temp: float, house_insulation: float):
+        """Update the room temperature based on external conditions, insulation and appliance usage."""
         # 1. Passive Physics
         exchange_rate = (1 - house_insulation) * 0.05 
         temp_diff = external_temp - self.temperature
@@ -81,7 +97,7 @@ class Room(mesa.Agent):
                 if is_cooling:
                     needed = self.temperature - (TARGET_COOL - TOLERANCE)
                     
-                    # Restore AC capacity too
+                    # Restore AC capacity
                     max_power = 3.0 
                     
                     actual_change = min(needed, max_power)
@@ -89,14 +105,30 @@ class Room(mesa.Agent):
                     appliance.current_load = actual_change / max_power
 
     def step(self):
+        """Execute one simulation step: auto-turn-off smart appliances if room is empty."""
         # Smart appliances should auto-turn-off when room empty
         if not self.occupants:
             for appliance in self.appliances:
                 if appliance.is_smart:
                     appliance.turn_off()
 
-# POWER_CONSUMPTION uses ApplianceType defined in enums.py
 class Appliance(mesa.Agent):
+    """
+    Agent representing an appliance in the house.
+
+    Attributes:
+        appliance_type (ApplianceType): Type of the appliance (e.g., REFRIGERATOR, STOVE).
+        room (Room): The room where the appliance is located.
+        is_on (bool): Indicates if the appliance is currently on.
+        is_smart (bool): Indicates if the appliance has smart capabilities.
+        power_consumption (float): Power consumption rate in kWh.
+        hours_used (float): Total hours the appliance has been used.
+        total_consumption (float): Total energy consumed in kWh.
+        current_load (float): Current load percentage (for appliances with variable power).
+    """
+
+
+    # POWER_CONSUMPTION uses ApplianceType defined in enums.py
     POWER_CONSUMPTION = {
         ApplianceType.REFRIGERATOR: 0.15,
         ApplianceType.STOVE: 2.0,
@@ -112,6 +144,7 @@ class Appliance(mesa.Agent):
     }
 
     def __init__(self, unique_id, model, appliance_type: ApplianceType, room: Room, is_smart: bool = False):
+        """Initialize an appliance with given parameters in a given room."""
         super().__init__(unique_id, model)
         self.appliance_type = appliance_type
         self.room = room
@@ -122,7 +155,7 @@ class Appliance(mesa.Agent):
         self.total_consumption = 0.0
         self.current_load = 0.0
 
-        # start an Appliance cycle 
+        # Start an Appliance cycle
         self.cycle_duration = 0  # hours remaining in current cycle
         self.cycle_energy_per_hour = 0.0
 
@@ -151,6 +184,7 @@ class Appliance(mesa.Agent):
                     self.cycle_energy_per_hour = self.power_consumption / duration_hours
 
     def _get_occupant_count(self):
+        """Getter for the number of occupants."""
         count = 0
         for agent in self.model.schedule.agents:
             if agent.__class__.__name__ == "Person":
@@ -158,6 +192,7 @@ class Appliance(mesa.Agent):
         return count if count > 0 else 1
 
     def turn_on(self):
+        """Turn on the appliance and mark it as being used if smart."""
         self.is_on = True
         # Mark smart appliance as used (resets idle timer for smart appliances)
         if self.is_smart:
@@ -165,11 +200,13 @@ class Appliance(mesa.Agent):
             self.inactive_time = 0
 
     def turn_off(self):
+        """Turn off the appliance unless it's a refrigerator or water heater."""
         # Some appliances stay on
         if self.appliance_type not in [ApplianceType.REFRIGERATOR, ApplianceType.WATER_HEATER]:
             self.is_on = False
 
     def step(self):
+        """Execute one simulation step: calculate energy consumption and manage smart appliance logic."""
         # Reset usage flag for next step
         if self.is_smart:
             self.is_being_used = False
@@ -193,9 +230,7 @@ class Appliance(mesa.Agent):
                 temp_factor = 1.0 + (max(0, room_temp - 20.0) * 0.05)
                 
                 consumption = self.power_consumption * temp_factor
-                
-                # Debug print to see the effect
-                print(f"Fridge in {room_temp:.1f}°C room using {consumption:.3f} kWh (Factor: {temp_factor:.2f})")
+
 
             elif self.appliance_type in [ApplianceType.DISHWASHER, ApplianceType.STOVE]:
                 # Cycle-based logic
@@ -203,7 +238,6 @@ class Appliance(mesa.Agent):
                     step_duration = min(1.0, self.cycle_duration)
                     consumption = self.cycle_energy_per_hour * step_duration
                     self.cycle_duration -= 1
-                    print(f"[Appliance] {self.appliance_type.name} running. {self.cycle_duration} hours left.")
                 else:
                     self.turn_off()
 
@@ -255,10 +289,21 @@ class Appliance(mesa.Agent):
             # Track consumption by appliance
             if hasattr(self.model, "consumption_by_appliance"):
                 self.model.consumption_by_appliance[self.appliance_type] += consumption
-            print(f"[Appliance] {self.appliance_type.name} in {self.room.room_type.name} consumed {consumption} kWh this step.")
 
 class House(mesa.Agent):
+    """
+    Agent representing a house in the residential energy model.
+
+    Attributes:
+        insulation_quality (float): Insulation quality of the house (0 to 1).
+        indoor_temperature (float): Current indoor temperature of the house.
+        rooms (List[Room]): List of rooms in the house.
+        occupants (List): List of occupants in the house.
+        total_consumption (float): Total energy consumption of the house.
+        smart_appliances (str): Smart appliance configuration ("none", "base", "all").
+    """
     ROOM_VOLUMES = {
+        # Volume weights for each room type
             RoomType.LIVING_ROOM: 0.35, 
             RoomType.BEDROOM: 0.25,
             RoomType.KITCHEN: 0.15,
@@ -266,6 +311,7 @@ class House(mesa.Agent):
             RoomType.BATHROOM: 0.05
         }
     def __init__(self, unique_id, model, num_occupants: int = 2, insulation_quality: float = 0.5, n_kitchens: int = 1, n_living_rooms: int = 1, n_bedrooms: int = 2 ,n_bathrooms: int = 1, n_hallways: int = 1, smart_appliances: str = "base"):
+        """Initialize a house with given parameters and create rooms and occupants."""
         super().__init__(unique_id, model)
         self.insulation_quality = insulation_quality
         self.indoor_temperature = 15
@@ -296,6 +342,7 @@ class House(mesa.Agent):
         self._create_occupants(num_occupants)
 
     def _add_appliances_to_room(self, room: Room):
+        """Populate a room with appliances based on its type and smart appliance settings."""
         appliances_by_room = {
             RoomType.KITCHEN: [
                 ApplianceType.REFRIGERATOR,
@@ -338,6 +385,7 @@ class House(mesa.Agent):
             self.model.schedule.add(appliance)
 
     def _create_occupants(self, num_occupants: int):
+        """Create occupants and add them to the house."""
         # local import to avoid import order issues in some execution contexts
         from person import Person
         for i in range(num_occupants):
@@ -346,18 +394,20 @@ class House(mesa.Agent):
             self.model.schedule.add(person)
 
     def get_room_by_type(self, room_type: RoomType) -> Optional[Room]:
+        """Retrieve a room by its type."""
         for room in self.rooms:
             if room.room_type == room_type:
                 return room
         return None
 
     def update_temperature(self):
+        """Update the temperature of each room based on external weather conditions."""
         weather = self.model.get_current_weather()
         for room in self.rooms:
             room.update_temperature(weather.temperature, self.insulation_quality)
 
-    # Simulate air circulation. Warm air from Living Room moves to the Hallway.
     def distribute_heat(self):
+        """Simulate air circulation and heat distribution among rooms."""
 
         # Calculate the Weighted Average Temperature of the whole house
         total_volume = 0.0
@@ -379,8 +429,9 @@ class House(mesa.Agent):
             room.temperature += diff * AIR_MIXING_RATE
 
     def step(self):
+        """Execute one simulation step: update temperatures and enforce smart policies."""
         self.update_temperature()
-        # let rooms enforce smart policies
+        # Let rooms enforce smart policies
         for room in self.rooms:
             room.step()
 

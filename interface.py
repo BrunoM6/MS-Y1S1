@@ -5,6 +5,10 @@ from world import ResidentialEnergyModel
 from ren import RENDataHub
 from results import SimulationResultsManager
 
+"""
+Provides an interactive web-based dashboard for the Residential Energy Model using Mesa's ModularServer.
+"""
+
 class SaveResidentialEnergyModel(ResidentialEnergyModel):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -47,7 +51,7 @@ class ApplianceBreakdownElement(TextElement):
         return breakdown_html
 
 
-# Chart modules that match the keys in ResidentialEnergyModel.datacollector
+# Charts shown in the interface (Total Energy, Average Temp, Outside Temp, Cost)
 energy_chart = ChartModule(
     [{"Label": "Total Energy (kWh)", "Color": "#d62728"}],
     data_collector_name='datacollector'
@@ -89,8 +93,6 @@ def get_ren_price(year: int, month: int) -> float:
             avg_price_mwh = df['price'].mean()
             avg_price_kwh = avg_price_mwh / 1000
         else:
-
-            print(f"Available columns: {df.columns.tolist()}")
             print("Using default price of 0.15 €/kWh")
             return 0.15
 

@@ -4,10 +4,19 @@ from typing import Dict, Optional, TYPE_CHECKING, List
 from enums import RoomType, ApplianceType
 
 if TYPE_CHECKING:
-    from house import House, Room, Appliance
+    from house import House, Room
+
+"""
+This module defines the Person agent, which simulates the behavior of a household occupant.
+Each Person has a daily routine, moves between rooms, uses appliances, and responds to temperature changes.
+"""
 
 
 def _generate_routine() -> Dict[int, str]:
+    """
+    Generate a simple daily routine for the person.
+    :return: Dict[int, str] mapping hour of day to activity
+    """
     routine = {}
     for h in range(0, 7):
         routine[h] = "sleeping"
@@ -26,11 +35,21 @@ def _generate_routine() -> Dict[int, str]:
     return routine
 
 
-class Person(mesa.Agent if False else object):  # keep simple for tests / not running as Mesa agent strictly
+class Person(mesa.Agent):
+    """
+    Agent representing a household occupant.
+
+    Attributes:
+        name (str): Occupant identifier.
+        house (House): Reference to the house the person lives in.
+        current_room (Optional[Room]): The room the person is currently in.
+        is_home (bool): Whether the person is currently at home.
+        energy_conscious (bool): Whether the person is energy conscious.
+        routine_schedule (Dict[int, str]): Daily routine mapping hour to activity.
+    """
     def __init__(self, unique_id, model, name: str, house: 'House'):
-        # If Mesa Agent is available, subclass integration can be added; simplified constructor here
-        self.unique_id = unique_id
-        self.model = model
+        """Initialize a person agent."""
+        super().__init__(unique_id=unique_id, model=model)
         self.name = name
         self.house = house
         self.current_room: Optional['Room'] = None
@@ -39,6 +58,7 @@ class Person(mesa.Agent if False else object):  # keep simple for tests / not ru
         self.routine_schedule = _generate_routine()
 
     def move_to_room(self, room: 'Room'):
+        """Move occupant to a different room and manage light status (either daytime or energy conscious)."""
         if self.current_room and self.current_room != room:
             try:
                 self.current_room.occupants.remove(self)
@@ -62,6 +82,7 @@ class Person(mesa.Agent if False else object):  # keep simple for tests / not ru
                     if appliance.is_smart: appliance.is_being_used = True
 
     def perform_activity(self, activity: str):
+        """Perform the specified activity based on the routine."""
         hour = self.model.hour_of_day
 
         if activity == "sleeping":
@@ -147,6 +168,7 @@ class Person(mesa.Agent if False else object):  # keep simple for tests / not ru
                             if appliance.is_smart: appliance.is_being_used = True
 
     def respond_to_temperature(self):
+        """Adjust heating/cooling appliances based on room temperature."""
         if not self.is_home or not self.current_room:
             return
 
@@ -167,6 +189,7 @@ class Person(mesa.Agent if False else object):  # keep simple for tests / not ru
                     appliance.turn_off()
 
     def step(self):
+        """Execute one simulation step: follow routine and respond to temperature."""
         hour = self.model.hour_of_day
         activity = self.routine_schedule.get(hour, "evening_activities")
         self.perform_activity(activity)

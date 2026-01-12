@@ -1,5 +1,9 @@
 from enum import Enum
 
+"""
+This module defines enumerations for different types of rooms and appliances
+"""
+
 class RoomType(Enum):
     KITCHEN = "kitchen"
     LIVING_ROOM = "living room"

@@ -4,14 +4,25 @@ from pathlib import Path
 from datetime import datetime
 from world import ResidentialEnergyModel
 
+"""
+This module manages saving and loading simulation results for the ResidentialEnergyModel.
+"""
+
 
 class SimulationResultsManager:
+    """
+    Manages saving and loading simulation results for ResidentialEnergyModel.
+
+    Attributes:
+        results_base_dir (Path): Base directory to store simulation results.
+    """
     def __init__(self, results_base_dir: str = "simulation_results"):
+        """Initializes the SimulationResultsManager."""
         self.results_base_dir = Path(results_base_dir)
         self.results_base_dir.mkdir(exist_ok=True)
 
     def save_run(self, model: 'ResidentialEnergyModel', run_name: str = None):
-
+        """Save configuration and results of a simulation run."""
         if run_name is None:
             run_name = datetime.now().strftime("%Y%m%d_%H%M%S")
         else:
@@ -74,7 +85,7 @@ class SimulationResultsManager:
         return run_dir
 
     def load_run(self, run_dir: Path):
-        """Load a saved simulation run"""
+        """Load configuration and results of a simulation run."""
         config_file = run_dir / "config.json"
         simulation_results_file = run_dir / "simulation_results.csv"
 

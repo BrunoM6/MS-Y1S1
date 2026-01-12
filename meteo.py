@@ -34,7 +34,7 @@ class WeatherService:
             
             if "hourly" in data and "temperature_2m" in data["hourly"]:
                 temps = data["hourly"]["temperature_2m"]
-                print(f"✓ Fetched {len(temps)} hours of weather data for Porto ({start_date})")
+                print(f"Fetched {len(temps)} hours of weather data for Porto ({start_date})")
                 return temps
             
             return None

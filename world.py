@@ -4,7 +4,7 @@ from mesa.datacollection import DataCollector
 import random
 import numpy as np
 from dataclasses import dataclass
-from typing import List, Dict
+from typing import Dict
 
 from meteo import WeatherService
 from enums import ApplianceType
@@ -13,18 +13,52 @@ from ren import RENDataHub
 
 @dataclass
 class WeatherCondition:
+    """
+    Represents the weather conditions at a given time.
+
+    Attributes:
+        temperature (float): The external temperature in degrees Celsius.
+        solar_radiation (float): The solar radiation in W/m².
+        hour_of_day (int): The current hour of the day (0-23).
+        is_extreme_event (bool): Indicates if the current weather is part of an extreme event
+    """
     temperature: float
     solar_radiation: float
     hour_of_day: int
     is_extreme_event: bool = False
 
+"""
+This module contains the main ResidentialEnergyModel class which simulates energy consumption
+in a residential building based on various parameters such as number of rooms, occupants,
+insulation quality, weather conditions, and appliance smartness levels.
+"""
+
 class ResidentialEnergyModel(Model):
+    """
+    Main Agent-Based Model for simulating residential energy consumption.
+
+    Attributes:
+        total_energy_consumed (float): Cumulative energy consumed in kWh.
+        current_day (int): Current day in the simulation.
+        hour_of_day (int): Current hour of the day (0-23).
+        steps_per_day (int): Number of simulation steps per day.
+        total_steps_run (int): Total simulation steps executed.
+        daily_consumption (list): List of daily energy consumption values.
+        consumption_by_appliance (dict): Energy consumption breakdown by appliance type.
+        running (bool): Indicates if the simulation is still running.
+        simulation_days (int): Total number of days to simulate.
+        total_steps_allowed (int): Total simulation steps allowed.
+        weather_scenario (str): Weather scenario type ("normal", "heatwave", "cold_snap").
+        smart_appliances (str): Level of smart appliances ("base", "advanced", "none").
+        ren_month (str): Month for REN price data in "YYYY-MM" format.
+        n_occupants (int): Number of occupants in the house.
+        energy_price_per_kwh (float): Energy price per kWh in Euros, retrieved from Open_Meteo.
+    """
     def __init__(self, n_kitchens: int = 1, n_living_rooms: int = 1, n_bedrooms: int = 2, 
                  n_bathrooms: int = 1, n_hallways: int = 1, n_occupants: int = 2, 
-                 avg_insulation_quality: float = 0.5, simulation_days: int = 5, 
-                 energy_price_per_kwh: float = 0.15, weather_scenario: str = "normal", 
+                 avg_insulation_quality: float = 0.5, simulation_days: int = 5, weather_scenario: str = "normal",
                  smart_appliances: str = "base", ren_month: str = "2024-02"):
-        
+        """Initialize the Residential Energy Model with given parameters."""
         super().__init__()
 
         self.total_energy_consumed = 0.0
@@ -43,7 +77,7 @@ class ResidentialEnergyModel(Model):
         self.ren_month = ren_month
         self.n_occupants = n_occupants
 
-        # fetch external data (price)
+        # Fetch external data (price)
         self.energy_price_per_kwh = self._fetch_ren_price(ren_month)
 
         self.schedule = RandomActivation(self)
@@ -69,6 +103,7 @@ class ResidentialEnergyModel(Model):
         )
 
     def _generate_weather_profile(self):
+        """Generate temperature profile for the simulation duration."""
         total_simulation_hours = self.simulation_days * 24
         self.is_extreme = False
         
@@ -90,7 +125,6 @@ class ResidentialEnergyModel(Model):
         real_temps = []
         try:
             year, month = map(int, self.ren_month.split('-'))
-            print(f"Fetching real weather for: {self.ren_month}")
             real_temps = WeatherService.get_hourly_temperatures(year, month)
         except Exception as e:
             print(f"Weather fetch warning: {e}")
@@ -102,7 +136,6 @@ class ResidentialEnergyModel(Model):
                 real_temps = real_temps * factor
             
             self.weather_temps = np.array(real_temps[:total_simulation_hours + 24])
-            print(f"Using REAL Open-Meteo data. Avg Temp: {np.mean(self.weather_temps):.1f}°C")
         else:
             # Fallback Synthetic
             print("Using Synthetic Normal profile.")
@@ -120,6 +153,7 @@ class ResidentialEnergyModel(Model):
             self.weather_temps = base_temp_hourly + daily_variation + np.random.normal(0, 0.5, len(all_hours))
 
     def _fetch_ren_price(self, ren_month: str) -> float:
+        """Fetch eletricity price from REN API for the given month."""
         try:
             year, month = map(int, ren_month.split('-'))
             ren = RENDataHub()
@@ -130,6 +164,7 @@ class ResidentialEnergyModel(Model):
             return 0.15
 
     def get_current_weather(self) -> WeatherCondition:
+        """Get the current weather condition based on the simulation time."""
         hour = self.hour_of_day
         current_hour_index = self.current_day * 24 + hour
         idx = min(current_hour_index, len(self.weather_temps) - 1)
@@ -138,6 +173,7 @@ class ResidentialEnergyModel(Model):
         return WeatherCondition(temperature, solar_radiation, hour, self.is_extreme)
 
     def step(self):
+        """Advance the model by one step (one hour)."""
         self.schedule.step()
         self.datacollector.collect(self)
         self.total_steps_run += 1
@@ -151,11 +187,13 @@ class ResidentialEnergyModel(Model):
             self.daily_consumption.append(self.total_energy_consumed)
             
     def run_simulation(self):
+        """Run the simulation until completion."""
         while self.running:
             self.step()
 
     # Required for Interface text element
     def get_summary_statistics(self) -> Dict:
+        """Return summary statistics of the simulation."""
         return {
             "total_energy_kwh": self.total_energy_consumed,
         }
